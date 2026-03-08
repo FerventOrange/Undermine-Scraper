@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source
 COPY src/ ./src/
 
-# Switch to the non-root user provided by the Playwright image
-USER pwuser
+# Run as uid 1000 (matches typical host user for bind-mount permissions)
+USER 1000
 
 CMD ["python", "-m", "src.main"]
