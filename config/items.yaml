@@ -1,0 +1,13 @@
+items:
+  - name: "Odd Glob of Wax"
+    item_id: 242787
+    realm: "us-dalaran"
+    enabled: true
+
+scraper:
+  poll_interval_minutes: 15
+  timeout_seconds: 30
+  retry_attempts: 3
+
+discord:
+  webhook_url: "${DISCORD_WEBHOOK_URL}"
