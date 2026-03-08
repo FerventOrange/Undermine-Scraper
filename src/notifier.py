@@ -101,7 +101,7 @@ class DiscordNotifier:
         )
 
         embed.set_footer(text="Undermine Exchange Monitor")
-        embed.set_timestamp(datetime.now(timezone.utc).isoformat())
+        embed.set_timestamp(datetime.now(timezone.utc).timestamp())
 
         webhook = DiscordWebhook(url=self._webhook_url)
         webhook.add_embed(embed)

@@ -21,8 +21,8 @@ _BASE_URL = "https://undermine.exchange"
 async def parse_price_element(page: Page, td_element: object) -> int:
     """Extract a copper-denominated price from a table cell element.
 
-    The cell is expected to contain a ``<span class="coins">`` wrapper
-    with child spans for ``.gold``, ``.silver``, and ``.copper``.
+    The cell contains ``.gold``, ``.silver``, and/or ``.copper`` spans,
+    either directly or inside a wrapper ``<span>``.
 
     Args:
         page: The active Playwright page (used for JS evaluation).
@@ -33,11 +33,9 @@ async def parse_price_element(page: Page, td_element: object) -> int:
     """
     result = await page.evaluate(
         """(td) => {
-            const coins = td.querySelector('.coins');
-            if (!coins) return { gold: 0, silver: 0, copper: 0 };
-            const goldEl = coins.querySelector('.gold');
-            const silverEl = coins.querySelector('.silver');
-            const copperEl = coins.querySelector('.copper');
+            const goldEl = td.querySelector('.gold');
+            const silverEl = td.querySelector('.silver');
+            const copperEl = td.querySelector('.copper');
             return {
                 gold: goldEl ? parseInt(goldEl.textContent.replace(/,/g, ''), 10) || 0 : 0,
                 silver: silverEl ? parseInt(silverEl.textContent.replace(/,/g, ''), 10) || 0 : 0,
@@ -71,22 +69,40 @@ class UndermineScraper:
         self._timeout_ms = timeout_seconds * 1000
         self._playwright: object | None = None
         self._browser: object | None = None
+        self._context: object | None = None
 
     async def start(self) -> None:
         """Launch the headless Chromium browser."""
         logger.info("Starting Playwright browser (headless Chromium)")
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(headless=True)
+        self._browser = await self._playwright.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        self._context = await self._browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1920, "height": 1080},
+        )
+        await self._context.add_init_script(
+            'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+        )
         logger.info("Browser started")
 
     async def stop(self) -> None:
         """Close the browser and release Playwright resources."""
+        if self._context:
+            await self._context.close()
         if self._browser:
             await self._browser.close()
             logger.info("Browser closed")
         if self._playwright:
             await self._playwright.stop()
             logger.info("Playwright stopped")
+        self._context = None
         self._browser = None
         self._playwright = None
 
@@ -110,7 +126,7 @@ class UndermineScraper:
 
         page: Page | None = None
         try:
-            page = await self._browser.new_page()
+            page = await self._context.new_page()
             await page.goto(url, wait_until="domcontentloaded")
 
             # Wait for the base-stats container to appear, indicating data
